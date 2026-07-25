@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-cream text-ink font-body;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar to keep the brutalist chunky feel */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #F1E6C9;
+}
+::-webkit-scrollbar-thumb {
+  background: #181410;
+  border: 2px solid #F1E6C9;
+}
