@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, Search } from 'lucide-react';
 
 const INITIAL_FORM_STATE = {
   title: '',
@@ -15,13 +15,15 @@ const INITIAL_FORM_STATE = {
   description: '',
 };
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
 function normalizeNumber(value, fallback = null) {
   if (value === '') return fallback;
   const parsedValue = Number(value);
   return Number.isFinite(parsedValue) ? parsedValue : fallback;
 }
 
-function createFormData(formState, coverImage) {
+function createFormData(formState, coverImage, authorSelected) {
   const formData = new FormData();
 
   formData.append('title', formState.title.trim());
@@ -29,7 +31,6 @@ function createFormData(formState, coverImage) {
   formData.append('theme_id', formState.theme_id);
   formData.append('isbn', formState.isbn.trim());
   
-  // Trata os campos opcionais (só envia se tiver valor)
   if (formState.subtitle.trim()) formData.append('subtitle', formState.subtitle.trim());
   if (formState.publication_year) formData.append('publication_year', formState.publication_year);
   if (formState.quantity) formData.append('quantity', formState.quantity);
@@ -37,18 +38,10 @@ function createFormData(formState, coverImage) {
   if (formState.cutter_code.trim()) formData.append('cutter_code', formState.cutter_code.trim());
   if (formState.description.trim()) formData.append('description', formState.description.trim());
   
-  // Adiciona a imagem
   formData.append('cover_image', coverImage);
 
-  // Transforma a string "1, 2, 3" em um array de IDs e faz o append para o Laravel
-  // O Laravel entende chaves com colchetes "authors[]" como arrays
-  const authorIds = formState.authors
-    .split(',')
-    .map(id => id.trim())
-    .filter(id => id !== ''); // Remove espaços vazios
-    
-  authorIds.forEach(id => {
-    formData.append('authors[]', id);
+  authorSelected.forEach((author) => {
+    formData.append('authors[]', String(author.id));
   });
 
   return formData;
@@ -67,17 +60,41 @@ function Field({ label, hint, children }) {
 }
 
 function baseControlClassName() {
-  return 'mt-2 w-full rounded-xl border-3 border-ink bg-cream px-4 py-3 text-sm shadow-brutalSm outline-none transition-all placeholder:text-ink/35 focus:shadow-brutalHover focus:translate-x-[1px] focus:translate-y-[1px]';
+  return 'mt-2 w-full rounded-xl border-3 border-ink bg-cream px-4 py-3 text-sm shadow-brutalSm outline-none transition-all placeholder:text-ink/35 focus:shadow-brutalHover focus:translate-x-px focus:translate-y-px';
 }
 
 export default function AdminBookForm({ onSubmit }) {
   const [formState, setFormState] = useState(INITIAL_FORM_STATE);
   const [coverImage, setCoverImage] = useState(null);
+  const [authorQuery, setAuthorQuery] = useState('');
+  const [authorSearchResults, setAuthorSearchResults] = useState([]);
+  const [authorSelected, setAuthorSelected] = useState([]);
+  const [hasSearchedAuthors, setHasSearchedAuthors] = useState(false);
 
   const coverImageLabel = useMemo(() => {
     if (!coverImage) return 'Nenhum arquivo selecionado';
     return coverImage.name;
   }, [coverImage]);
+
+  function selectAuthor(authorId, authorName) {
+    setAuthorSelected((currentSelected) => {
+      if (currentSelected.some((author) => String(author.id) === String(authorId))) {
+        return currentSelected;
+      }
+
+      return [...currentSelected, { id: authorId, name: authorName }];
+    });
+
+    setAuthorSearchResults([]);
+    setAuthorQuery('');
+    setHasSearchedAuthors(false);
+  }
+
+  function removeAuthor(authorId) {
+    setAuthorSelected((currentSelected) =>
+      currentSelected.filter((author) => String(author.id) !== String(authorId))
+    );
+  }
 
   function updateField(name, value) {
     setFormState((currentState) => ({
@@ -87,17 +104,24 @@ export default function AdminBookForm({ onSubmit }) {
   }
 
   async function authorSearch(query) {
-    if (!query) return [];
-    const response = await fetch(`http://localhost/api/authors?q=${query}`);
+    const trimmedQuery = query.trim();
+    setHasSearchedAuthors(true);
+
+    if (!trimmedQuery) {
+      setAuthorSearchResults([]);
+      return [];
+    }
+
+    const response = await fetch(`${API_BASE}/authors?q=${encodeURIComponent(trimmedQuery)}`);
     const data = await response.json();
-    console.log("Resultado da busca de autores:", data);
+    setAuthorSearchResults(data.data ?? []);
     return data;
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!formState.title || !formState.publisher_id || !formState.theme_id || !formState.isbn || !formState.authors) {
+    if (!formState.title || !formState.publisher_id || !formState.theme_id || !formState.isbn || authorSelected.length === 0) {
       alert("Preencha todos os campos obrigatórios.");
       return;
     }
@@ -107,13 +131,12 @@ export default function AdminBookForm({ onSubmit }) {
       return;
     }
 
-    const formData = createFormData(formState, coverImage);
+    const formData = createFormData(formState, coverImage, authorSelected);
 
     try {
-      const response = await fetch('http://localhost/api/books', {
+      const response = await fetch(`${API_BASE}/books`, {
         method: 'POST',
         headers: {
-          // OBRIGATÓRIO para o Laravel retornar os erros de validação em JSON
           'Accept': 'application/json',
         },
         body: formData
@@ -122,13 +145,12 @@ export default function AdminBookForm({ onSubmit }) {
       const data = await response.json();
 
       if (!response.ok) {
-        // Se cair aqui, o Laravel barrou na validação (Form Request)
         console.error("Erros de validação:", data.errors);
         alert("Erro ao cadastrar.");
         return;
       }
 
-      onSubmit?.(data); // Opcional: avisa o componente pai que terminou
+      onSubmit?.(data);
       
     } catch (error) {
       console.error("Erro na requisição:", error);
@@ -168,16 +190,65 @@ export default function AdminBookForm({ onSubmit }) {
           </Field>
 
           <Field label="Autores">
-            <input type="text"
-              value={formState.authors}
-              onChange={(event) => updateField('authors', event.target.value)}
-              placeholder="Ex.: John Doe, Jane Smith"
-              className={baseControlClassName()}
-              required
-            />
-            <button type="button" className="mt-2 text-sm text-blue-500 hover:text-blue-700" onClick={() => authorSearch(formState.authors)}>
-              Adicionar Autor
-            </button>
+            <p className="text-sm text-ink/70">Digite o nome do autor e pesquise.</p>
+            <div className="mt-3 flex gap-2">
+              <input
+                type="text"
+                value={authorQuery}
+                onChange={(event) => setAuthorQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    authorSearch(authorQuery);
+                  }
+                }}
+                placeholder="Ex.: John Doe"
+                className={baseControlClassName()}
+              />
+              <button
+                type="button"
+                className="mt-2 inline-flex shrink-0 items-center gap-2 rounded-lg border-3 border-ink bg-panel px-4 py-3 text-sm font-semibold shadow-brutalSm transition-all hover:shadow-brutalHover hover:translate-x-px hover:translate-y-px"
+                onClick={() => authorSearch(authorQuery)}
+              >
+                <Search className="inline-block w-4 h-4" />
+                Buscar
+              </button>
+            </div>
+            {hasSearchedAuthors && authorSearchResults.length > 0 ? (
+              <ul className="mt-2 space-y-1 bg-amber-50 border-2 border-amber-200 rounded-lg p-2 max-h-32 overflow-y-auto">
+                {authorSearchResults.map((author) => (
+                  <li
+                    key={author.id}
+                    className="text-sm text-ink/70 cursor-pointer hover:underline"
+                    onClick={() => selectAuthor(author.id, author.name)}
+                  >
+                    {author.name}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {authorSelected.length > 0 ? (
+              <div className="mt-4">
+                <p className="text-sm text-ink/70">Autores selecionados:</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {authorSelected.map((author) => (
+                    <button
+                      key={author.id}
+                      type="button"
+                      onClick={() => removeAuthor(author.id)}
+                      className="inline-flex items-center gap-2 rounded-full border-2 border-ink bg-orange-brand px-3 py-1 text-xs font-semibold shadow-brutalSm transition-all hover:shadow-brutalHover"
+                      title="Remover autor"
+                    >
+                      <span>{author.name}</span>
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <p className="mt-2 text-xs text-ink/50">
+              Os autores selecionados serão enviados como IDs no cadastro do livro.
+            </p>
           </Field>
 
           <Field label="Descrição" hint="Opcional">
@@ -313,7 +384,7 @@ export default function AdminBookForm({ onSubmit }) {
 
         <button
           type="submit"
-          className="inline-flex items-center justify-center gap-2 rounded-lg border-3 border-ink bg-orange-brand px-6 py-3 font-display text-xs tracking-wide shadow-brutalSm transition-all hover:shadow-brutalHover hover:translate-x-[1px] hover:translate-y-[1px]"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border-3 border-ink bg-orange-brand px-6 py-3 font-display text-xs tracking-wide shadow-brutalSm transition-all hover:shadow-brutalHover hover:translate-x-px hover:translate-y-px"
         >
           <Upload size={14} strokeWidth={2.5} />
           CADASTRAR LIVRO

@@ -4,10 +4,10 @@ import Hero from './components/Hero';
 import BookGrid from './components/BookGrid';
 import BookDrawer from './components/BookDrawer';
 import About from './components/About';
-import { fetchPopularBooks, fetchRecommendedBooks } from './api/books';
+import { fetchBooks, fetchBooksByTheme, THEME_FILTERS } from './api/books';
 import AdminBookCreatePage from './pages/AdminBookCreatePage';
 
-const ADMIN_NEW_BOOK_PATH = '/admin/livros/novo';
+const ADMIN_NEW_BOOK_PATH = '/dashboard/books/new';
 
 function getCurrentPathname() {
   return window.location.pathname;
@@ -20,11 +20,10 @@ function navigateTo(pathname) {
 
 export default function App() {
   const [pathname, setPathname] = useState(getCurrentPathname);
-  const [category, setCategory] = useState('all');
+  const [activeThemeId, setActiveThemeId] = useState('all');
   const [query, setQuery] = useState('');
 
-  const [popular, setPopular] = useState([]);
-  const [recommended, setRecommended] = useState([]);
+  const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedBook, setSelectedBook] = useState(null);
@@ -43,41 +42,39 @@ export default function App() {
 
   useEffect(() => {
     if (isAdminRoute) {
+      setLoading(false);
       return undefined;
     }
 
     let cancelled = false;
     setLoading(true);
 
-    Promise.all([fetchPopularBooks(), fetchRecommendedBooks()]).then(
-      ([popularData, recommendedData]) => {
-        if (cancelled) return;
-        setPopular(popularData);
-        setRecommended(recommendedData);
-        setLoading(false);
-      }
-    );
+    const request = activeThemeId === 'all'
+      ? fetchBooks({ perPage: 1000 })
+      : fetchBooksByTheme(activeThemeId, { perPage: 1000 });
+
+    request.then((booksData) => {
+      if (cancelled) return;
+      setBooks(booksData);
+      setLoading(false);
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [isAdminRoute]);
+  }, [activeThemeId, isAdminRoute]);
 
-  const filterBooks = (books) =>
-    books.filter((b) => {
-      const matchesCategory = category === 'all' || b.category === category;
-      const matchesQuery =
-        !query.trim() ||
-        b.title.toLowerCase().includes(query.toLowerCase()) ||
-        b.author.toLowerCase().includes(query.toLowerCase());
-      return matchesCategory && matchesQuery;
+  const filteredBooks = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!normalizedQuery) return books;
+
+    return books.filter((book) => {
+      return [book.title, book.subtitle, book.authorsLabel, book.publisherLabel, book.themeLabel, book.isbn]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
     });
-
-  const filteredPopular = useMemo(() => filterBooks(popular), [popular, category, query]);
-  const filteredRecommended = useMemo(
-    () => filterBooks(recommended),
-    [recommended, category, query]
-  );
+  }, [books, query]);
 
   function openBook(book) {
     setSelectedBook(book);
@@ -96,24 +93,14 @@ export default function App() {
     <div id="top" className="min-h-screen bg-cream">
       <Navbar />
       <Hero
-        activeCategory={category}
-        onCategoryChange={setCategory}
+        themes={THEME_FILTERS}
+        activeThemeId={activeThemeId}
+        onThemeChange={setActiveThemeId}
         query={query}
         onQueryChange={setQuery}
       />
 
-      <BookGrid
-        title="Livros Populares"
-        books={filteredPopular}
-        loading={loading}
-        onOpen={openBook}
-      />
-      <BookGrid
-        title="Recomendados"
-        books={filteredRecommended}
-        loading={loading}
-        onOpen={openBook}
-      />
+      <BookGrid title="Acervo" books={filteredBooks} loading={loading} onOpen={openBook} />
 
       <About />
 

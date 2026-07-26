@@ -5,9 +5,7 @@ export default function BookGrid({ title, books, loading, onOpen }) {
     <section className="max-w-7xl mx-auto px-6 py-8">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-display text-xl">{title}</h2>
-        <a href="#" className="text-sm font-semibold underline underline-offset-2">
-          ver mais
-        </a>
+        <span className="text-sm font-semibold text-ink/60">{books.length} livro(s)</span>
       </div>
 
       {loading ? (
@@ -21,7 +19,7 @@ export default function BookGrid({ title, books, loading, onOpen }) {
         </div>
       ) : books.length === 0 ? (
         <div className="border-3 border-dashed border-ink/40 rounded-xl py-10 text-center text-ink/60 font-medium">
-          Nenhum título encontrado nesta categoria por enquanto.
+          Nenhum título encontrado com os filtros atuais.
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-5">

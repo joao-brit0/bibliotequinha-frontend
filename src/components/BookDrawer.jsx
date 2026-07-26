@@ -1,6 +1,8 @@
 import { X, Download, Bookmark, ListPlus, Play } from 'lucide-react';
 
 export default function BookDrawer({ book, open, onClose }) {
+  const hasCoverImage = Boolean(book?.coverImage);
+
   return (
     <>
       {/* Backdrop */}
@@ -31,28 +33,27 @@ export default function BookDrawer({ book, open, onClose }) {
             <div className="mt-2 flex gap-4">
               <div
                 className="w-24 h-32 shrink-0 rounded-lg border-3 border-ink shadow-brutalSm flex items-center justify-center"
-                style={{
-                  background: `linear-gradient(155deg, ${book.cover.from}, ${book.cover.to})`,
-                }}
+                style={!hasCoverImage ? { background: `linear-gradient(155deg, ${book.coverPalette.from}, ${book.coverPalette.to})` } : undefined}
               >
-                <span className="font-display text-3xl text-white/30">
-                  {book.cover.initial}
-                </span>
+                {hasCoverImage ? (
+                  <img src={book.coverImage} alt={book.title} className="h-full w-full rounded-lg object-cover" />
+                ) : (
+                  <span className="font-display text-3xl text-white/30">
+                    {book.coverInitial}
+                  </span>
+                )}
               </div>
               <div className="min-w-0">
                 <h3 className="font-display text-lg leading-tight">{book.title}</h3>
+                {book.subtitle ? <p className="mt-1 text-sm text-ink/70">{book.subtitle}</p> : null}
                 <p className="mt-2 text-sm">
-                  <span className="text-ink/60">Por: </span>
-                  <span className="font-semibold underline underline-offset-2">
-                    {book.author}
-                  </span>
+                  <span className="text-ink/60">Autores: </span>
+                  <span className="font-semibold underline underline-offset-2">{book.authorsLabel}</span>
                 </p>
-                {book.narrator && (
+                {book.publisherLabel && (
                   <p className="text-sm">
-                    <span className="text-ink/60">Narrador: </span>
-                    <span className="font-semibold underline underline-offset-2">
-                      {book.narrator}
-                    </span>
+                    <span className="text-ink/60">Editora: </span>
+                    <span className="font-semibold underline underline-offset-2">{book.publisherLabel}</span>
                   </p>
                 )}
               </div>
@@ -64,7 +65,7 @@ export default function BookDrawer({ book, open, onClose }) {
 
             <button className="mt-3 w-full py-3 rounded-lg border-3 border-ink bg-orange-brand font-display text-xs tracking-wide shadow-brutalSm hover:shadow-brutalHover hover:translate-x-[1px] hover:translate-y-[1px] transition-all flex items-center justify-center gap-2">
               <Play size={14} fill="currentColor" />
-              OUVIR AMOSTRA
+              VER FICHA TÉCNICA
             </button>
 
             <div className="mt-4 grid grid-cols-3 gap-3">
@@ -85,16 +86,28 @@ export default function BookDrawer({ book, open, onClose }) {
 
             <dl className="mt-6 space-y-2 text-sm border-t-3 border-ink pt-4">
               <div className="flex justify-between">
-                <dt className="text-ink/60">Duração</dt>
-                <dd className="font-semibold">{book.length}</dd>
+                <dt className="text-ink/60">Tema</dt>
+                <dd className="font-semibold">{book.themeLabel}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-ink/60">Formato</dt>
-                <dd className="font-semibold">{book.format}</dd>
+                <dt className="text-ink/60">ISBN</dt>
+                <dd className="font-semibold">{book.isbn}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-ink/60">Adicionado em</dt>
-                <dd className="font-semibold">{book.added}</dd>
+                <dt className="text-ink/60">Ano</dt>
+                <dd className="font-semibold">{book.publicationYear ?? '—'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-ink/60">Quantidade</dt>
+                <dd className="font-semibold">{book.quantity ?? '—'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-ink/60">Páginas</dt>
+                <dd className="font-semibold">{book.numberOfPages ?? '—'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-ink/60">Cutter</dt>
+                <dd className="font-semibold">{book.cutterCode ?? '—'}</dd>
               </div>
             </dl>
 

@@ -6,11 +6,9 @@
 //   VITE_API_URL=https://api.suabiblioteca.com
 //
 // Endpoints esperados (ajuste conforme sua API real):
-//   GET  /books                 -> lista de livros (aceita ?category=)
-//   GET  /books/popular         -> livros em destaque
-//   GET  /books/recommended     -> recomendados para o usuário
-//   GET  /books/:id             -> detalhes de um livro
-//   GET  /categories            -> lista de categorias disponíveis
+//   GET  /books                  -> lista de livros (aceita ?per_page= e ?page=)
+//   GET  /books/themes/{themeId}  -> livros filtrados por tema
+//   GET  /books/:id              -> detalhes de um livro
 //
 // Enquanto a API real não existir (ou estiver fora do ar), as funções abaixo
 // caem automaticamente para os dados de exemplo (MOCK_BOOKS), então o projeto
@@ -19,13 +17,29 @@
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-export const CATEGORIES = [
+export const THEME_FILTERS = [
   { id: 'all', label: 'Tudo' },
-  { id: 'ebooks', label: 'E-books' },
-  { id: 'audiobooks', label: 'Audiolivros' },
-  { id: 'magazines', label: 'Revistas' },
-  { id: 'podcast', label: 'Podcast' },
-  { id: 'comics', label: 'Quadrinhos' },
+  { id: '1', label: 'Romance' },
+  { id: '2', label: 'Comédia' },
+  { id: '3', label: 'Terror' },
+  { id: '4', label: 'Aventura' },
+  { id: '5', label: 'Fantasia' },
+  { id: '6', label: 'Suspense' },
+  { id: '7', label: 'Drama' },
+  { id: '8', label: 'Ficção Científica' },
+  { id: '9', label: 'História' },
+  { id: '10', label: 'Infantil' },
+];
+
+const FALLBACK_COVER_PALETTES = [
+  { from: '#F4A340', to: '#D9702B' },
+  { from: '#7FA66B', to: '#4C6E3C' },
+  { from: '#E4C77A', to: '#B99A3F' },
+  { from: '#C9CBD1', to: '#8C8E96' },
+  { from: '#2E2A28', to: '#141210' },
+  { from: '#EADFC8', to: '#C9B98D' },
+  { from: '#8A2E2E', to: '#4E1414' },
+  { from: '#2F3E6A', to: '#161E38' },
 ];
 
 export const MOCK_BOOKS = [
@@ -148,6 +162,99 @@ export const MOCK_BOOKS = [
   },
 ];
 
+function hashValue(value = '') {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash);
+}
+
+function getBookCoverPalette(seed) {
+  return FALLBACK_COVER_PALETTES[hashValue(String(seed)) % FALLBACK_COVER_PALETTES.length];
+}
+
+function extractBookArray(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.books)) return payload.books;
+
+  if (payload && typeof payload === 'object') {
+    const nestedCandidates = [payload.data, payload.books, payload.items, payload.results];
+
+    for (const candidate of nestedCandidates) {
+      const books = extractBookArray(candidate);
+      if (books.length > 0) return books;
+    }
+
+    const values = Object.values(payload);
+    if (values.length > 0) {
+      for (const value of values) {
+        const books = extractBookArray(value);
+        if (books.length > 0) return books;
+      }
+    }
+  }
+
+  return [];
+}
+
+export function normalizeBook(rawBook) {
+  if (!rawBook) return null;
+
+  const authors = Array.isArray(rawBook.authors) ? rawBook.authors : [];
+  const authorNames = authors
+    .map((author) => (typeof author === 'string' ? author : author?.name))
+    .filter(Boolean);
+
+  const publisherId = rawBook.publisher_id ?? rawBook.publisher?.id ?? null;
+  const publisherName = rawBook.publisher?.name ?? rawBook.publisher_name ?? null;
+
+  const themeId = rawBook.theme_id ?? rawBook.theme?.id ?? rawBook.category ?? null;
+  const themeName = rawBook.theme?.name ?? rawBook.theme_name ?? rawBook.category ?? null;
+
+  const title = rawBook.title ?? '';
+  const coverImage = rawBook.cover_url ?? rawBook.coverImage ?? null;
+  const coverPalette = rawBook.cover
+    ? rawBook.cover
+    : getBookCoverPalette(title || themeName || publisherName || String(themeId ?? 'book'));
+
+  return {
+    ...rawBook,
+    title,
+    subtitle: rawBook.subtitle ?? null,
+    coverImage,
+    coverPalette,
+    coverInitial: (title.trim().charAt(0) || '?').toUpperCase(),
+    publicationYear: rawBook.publication_year ?? rawBook.publicationYear ?? null,
+    publisherId,
+    publisher: rawBook.publisher ?? (publisherId != null ? { id: publisherId, name: publisherName } : null),
+    publisherLabel: publisherName || 'Sem editora',
+    themeId,
+    theme: rawBook.theme ?? (themeId != null ? { id: themeId, name: themeName } : null),
+    themeLabel: themeName || 'Sem tema',
+    isbn: rawBook.isbn ?? '',
+    quantity: rawBook.quantity ?? 1,
+    numberOfPages: rawBook.number_of_pages ?? rawBook.numberOfPages ?? null,
+    cutterCode: rawBook.cutter_code ?? rawBook.cutterCode ?? null,
+    description: rawBook.description ?? null,
+    authors,
+    authorNames,
+    authorsLabel: authorNames.join(', ') || 'Sem autor informado',
+    createdAt: rawBook.created_at ?? rawBook.createdAt ?? null,
+    updatedAt: rawBook.updated_at ?? rawBook.updatedAt ?? null,
+  };
+}
+
+export function normalizeBooks(payload) {
+  return extractBookArray(payload).map(normalizeBook).filter(Boolean);
+}
+
 async function safeFetch(path, fallback) {
   try {
     const res = await fetch(`${API_BASE}${path}`);
@@ -160,30 +267,37 @@ async function safeFetch(path, fallback) {
   }
 }
 
-/** Lista livros, opcionalmente filtrando por categoria. */
-export async function fetchBooks(category = 'all') {
-  const list = await safeFetch(
-    `/books${category !== 'all' ? `?category=${category}` : ''}`,
-    MOCK_BOOKS
-  );
-  if (category === 'all') return list;
-  return list.filter((b) => b.category === category);
+/** Lista livros, aceitando paginação via per_page/page. */
+export async function fetchBooks({ perPage, page } = {}) {
+  const params = new URLSearchParams();
+
+  if (perPage != null) params.set('per_page', String(perPage));
+  if (page != null) params.set('page', String(page));
+
+  const payload = await safeFetch(`/books${params.toString() ? `?${params.toString()}` : ''}`, MOCK_BOOKS);
+  return normalizeBooks(payload);
 }
 
-/** Livros em destaque na home. */
-export async function fetchPopularBooks() {
-  return safeFetch('/books/popular', MOCK_BOOKS.filter((b) => b.category === 'ebooks'));
-}
+/** Lista livros filtrando por tema na rota dedicada. */
+export async function fetchBooksByTheme(themeId, { perPage, page } = {}) {
+  const params = new URLSearchParams();
 
-/** Recomendações (audiolivros, no layout atual). */
-export async function fetchRecommendedBooks() {
-  return safeFetch(
-    '/books/recommended',
-    MOCK_BOOKS.filter((b) => b.category === 'audiobooks')
+  if (perPage != null) params.set('per_page', String(perPage));
+  if (page != null) params.set('page', String(page));
+
+  const query = params.toString();
+  const payload = await safeFetch(
+    `/books/theme/${themeId}${query ? `?${query}` : ''}`,
+    MOCK_BOOKS.filter((book) => String(book.theme_id ?? book.category ?? '') === String(themeId))
   );
+  return normalizeBooks(payload);
 }
 
 /** Detalhe de um único livro pelo id. */
 export async function fetchBookById(id) {
-  return safeFetch(`/books/${id}`, MOCK_BOOKS.find((b) => b.id === id) ?? null);
+  const payload = await safeFetch(
+    `/books/${id}`,
+    MOCK_BOOKS.find((book) => String(book.id) === String(id)) ?? null
+  );
+  return normalizeBook(payload);
 }
