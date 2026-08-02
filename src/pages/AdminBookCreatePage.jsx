@@ -1,26 +1,30 @@
 import { BookPlus, ClipboardList } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import AdminHeader from '../components/AdminHeader';
 import AdminBookForm from '../components/AdminBookForm';
 
-export default function AdminBookCreatePage({ onBackHome }) {
+export default function AdminBookCreatePage() {
   const [statusMessage, setStatusMessage] = useState('');
 
   function handleSubmit(data) {
     setStatusMessage(data.message);
   }
 
-  function clearStatusMessage() {
-    setStatusMessage('');
-  }
+  useEffect(() => {
+    if (!statusMessage) {
+      return undefined;
+    }
 
-  setTimeout(() => {
-    clearStatusMessage();
-  }, 5000);
+    const timeoutId = window.setTimeout(() => {
+      setStatusMessage('');
+    }, 5000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [statusMessage]);
 
   return (
     <div id="top" className="min-h-screen bg-cream">
-      <AdminHeader onBackHome={onBackHome} />
+      <AdminHeader />
 
       <main className="max-w-7xl mx-auto px-6 py-6 sm:py-8">
         <section className="bg-yellow-brand border-3 border-ink rounded-2xl shadow-brutal p-6 sm:p-8">
@@ -31,17 +35,17 @@ export default function AdminBookCreatePage({ onBackHome }) {
                 Cadastrar um novo livro
               </h1>
               <p className="mt-3 text-ink/80 leading-relaxed">
-                Esta tela já está pronta para receber os dados exigidos pelo backend, mantendo o mesmo estilo neobrutalista da aplicação.
+                Esta tela é protegida por rota e só deve ser exibida para usuários autenticados com perfil de administrador.
               </p>
             </div>
 
-            <div className="bg-panel border-3 border-ink rounded-xl shadow-brutalSm px-4 py-3 min-w-[220px]">
+            <div className="bg-panel border-3 border-ink rounded-xl shadow-brutalSm px-4 py-3 min-w-55">
               <div className="flex items-center gap-2 font-display text-xs tracking-wide">
                 <ClipboardList size={16} strokeWidth={2.5} />
                 ROTA FRONTEND
               </div>
-              <p className="mt-2 text-sm font-semibold">/admin/livros/novo</p>
-              <p className="mt-1 text-xs text-ink/60">Área preparada para integração com login depois.</p>
+              <p className="mt-2 text-sm font-semibold">/dashboard/books/new</p>
+              <p className="mt-1 text-xs text-ink/60">Área pronta para integrar login e permissões.</p>
             </div>
           </div>
 

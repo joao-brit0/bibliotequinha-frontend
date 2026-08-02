@@ -5,21 +5,8 @@ import BookGrid from './components/BookGrid';
 import BookDrawer from './components/BookDrawer';
 import About from './components/About';
 import { fetchBooks, fetchBooksByTheme, THEME_FILTERS } from './api/books';
-import AdminBookCreatePage from './pages/AdminBookCreatePage';
-
-const ADMIN_NEW_BOOK_PATH = '/dashboard/books/new';
-
-function getCurrentPathname() {
-  return window.location.pathname;
-}
-
-function navigateTo(pathname) {
-  window.history.pushState({}, '', pathname);
-  window.dispatchEvent(new PopStateEvent('popstate'));
-}
 
 export default function App() {
-  const [pathname, setPathname] = useState(getCurrentPathname);
   const [activeThemeId, setActiveThemeId] = useState('all');
   const [query, setQuery] = useState('');
 
@@ -28,24 +15,8 @@ export default function App() {
 
   const [selectedBook, setSelectedBook] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const isAdminRoute = pathname === ADMIN_NEW_BOOK_PATH;
 
   useEffect(() => {
-    const handlePopState = () => setPathname(window.location.pathname);
-
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (isAdminRoute) {
-      setLoading(false);
-      return undefined;
-    }
-
     let cancelled = false;
     setLoading(true);
 
@@ -62,7 +33,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [activeThemeId, isAdminRoute]);
+  }, [activeThemeId]);
 
   const filteredBooks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -83,10 +54,6 @@ export default function App() {
 
   function closeDrawer() {
     setDrawerOpen(false);
-  }
-
-  if (isAdminRoute) {
-    return <AdminBookCreatePage onBackHome={() => navigateTo('/')} />;
   }
 
   return (

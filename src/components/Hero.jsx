@@ -24,7 +24,7 @@ export default function Hero({ themes, activeThemeId, onThemeChange, query, onQu
                 className={`px-4 py-1.5 rounded-lg border-3 border-ink text-sm font-semibold transition-all ${
                   active
                     ? 'bg-orange-brand shadow-brutalSm'
-                    : 'bg-panel hover:bg-panel/70 shadow-brutalSm hover:shadow-brutalHover hover:translate-x-[1px] hover:translate-y-[1px]'
+                    : 'bg-panel hover:bg-panel/70 shadow-brutalSm hover:shadow-brutalHover hover:translate-x-px hover:translate-y-px'
                 }`}
               >
                 {theme.label}
